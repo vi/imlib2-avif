@@ -100,12 +100,36 @@ char load(ImlibImage * im, ImlibProgressFunction progress,
   im->w = w;
   im->h = h;
 
-  if(!IMAGE_DIMENSIONS_OK(w, h))
-      goto EXIT;
-  
   if(progress) {
       progress(im, 0, 0, 0, w, h);
   }
+
+  if (avif->depth != 8) {
+    fprintf(stderr, "imlib2-avif only supports 8-bit images for now\n");
+    goto EXIT;
+  }
+  /*
+  if (avif->yuvFormat != AVIF_PIXEL_FORMAT_YUV420) {
+    fprintf(stderr, "imlib2-avif only supports YUV420 for now\n");
+    goto EXIT;
+  }
+  */
+
+  if (!avif->rgbPlanes[0]) {
+      avifResult convResult = avifImageYUVToRGB(avif);
+
+      if (convResult != AVIF_RESULT_OK) {
+        fprintf(stderr, "avif yuv2rgb result: %s\n", avifResultToString(convResult));
+        goto EXIT;
+      }
+  }
+
+  avifImageFreePlanes(avif, AVIF_PLANES_YUV);
+  //fprintf(stderr, "y=%p  r=%p\n", avif->yuvPlanes[0], avif->rgbPlanes[0]);
+
+  if(!IMAGE_DIMENSIONS_OK(w, h))
+      goto EXIT;
+  
 
   if (!immediate_load) {
       retcode = 1;
@@ -116,14 +140,27 @@ char load(ImlibImage * im, ImlibProgressFunction progress,
   bgra = (uint8_t*)malloc(4 * w * h);
   if (!bgra) goto EXIT;
 
-  for (y = 0; y < h; ++y) {
-     int x;
-     for (x=0; x < w; ++x) {
-		  bgra[4*(y*w + x) + 0] = 0;//plane[y*stride + 4*x + 2];
-		  bgra[4*(y*w + x) + 1] = 0;//plane[y*stride + 4*x + 1];
-		  bgra[4*(y*w + x) + 2] = 0;//plane[y*stride + 4*x + 0];
-		  bgra[4*(y*w + x) + 3] = 0;//plane[y*stride + 4*x + 3];
-     }
+  if (!avif->alphaPlane) {
+      for (y = 0; y < h; ++y) {
+         int x;
+         for (x=0; x < w; ++x) {
+              bgra[4*(y*w + x) + 0] = avif->rgbPlanes[AVIF_CHAN_B][y * avif->rgbRowBytes[AVIF_CHAN_B] + x];
+              bgra[4*(y*w + x) + 1] = avif->rgbPlanes[AVIF_CHAN_G][y * avif->rgbRowBytes[AVIF_CHAN_G] + x];
+              bgra[4*(y*w + x) + 2] = avif->rgbPlanes[AVIF_CHAN_R][y * avif->rgbRowBytes[AVIF_CHAN_R] + x];
+              bgra[4*(y*w + x) + 3] = 255;
+         }
+      }
+  } else {
+      for (y = 0; y < h; ++y) {
+         int x;
+         for (x=0; x < w; ++x) {
+              bgra[4*(y*w + x) + 0] = avif->rgbPlanes[AVIF_CHAN_B][y * avif->rgbRowBytes[AVIF_CHAN_B] + x];
+              bgra[4*(y*w + x) + 1] = avif->rgbPlanes[AVIF_CHAN_G][y * avif->rgbRowBytes[AVIF_CHAN_G] + x];
+              bgra[4*(y*w + x) + 2] = avif->rgbPlanes[AVIF_CHAN_R][y * avif->rgbRowBytes[AVIF_CHAN_R] + x];
+              bgra[4*(y*w + x) + 3] = avif->alphaPlane[y * avif->alphaRowBytes + x];
+         }
+      }
+
   }
 
   im->data = (DATA32*)bgra;
