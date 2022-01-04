@@ -10,6 +10,11 @@ Usage
 2. Install avif and dav1d to `/opt/avif/{include,lib/x86_64-linux-gnu}`
 3. Build and install (somehow) `avif.so`.
 
+See also
+---
+
+* https://github.com/arp242/imlib2-heif
+
 
 [1]:https://aomediacodec.github.io/av1-avif/
 [2]:http://feh.finalrewind.org/
